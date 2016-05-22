@@ -1,0 +1,85 @@
+#!/bin/bash
+
+if yum list installed httpd > /dev/null 2>&1 ; then
+    echo "httpd is already installed";
+else
+    echo "Installing httpd"
+    echo "y" | sudo yum install httpd > /dev/null
+fi
+
+if yum list installed php > /dev/null 2>&1; then
+    echo "php is already installed";
+else
+    echo "Installing php"
+    echo "y" | sudo yum install php > /dev/null
+fi
+
+HOSTNAME=`hostname -s`
+eval "sed -i 's/\#ServerName\ www\.example\.com\:80/ServerName\ $HOSTNAME\:80/' /etc/httpd/conf/httpd.conf > /dev/null"
+
+eval "sed -i 's/Options\ Indexes\ FollowSymLinks/Options/' /etc/httpd/conf/httpd.conf > /dev/null"
+
+service httpd start > /dev/null 
+if [ "$?" -eq 0 ]; then
+    echo "httpd started without any errors"
+    service httpd stop > /dev/null
+else
+    echo "httpd failed to start correctly, exiting now" >2
+    exit 5
+fi
+
+if [ ! -f /etc/httpd/conf.d/php.conf ]; then
+    echo "php.conf does not exists" >2
+    exit 4
+fi
+
+
+if yum list installed php-mysql > /dev/null 2>&1; then
+    echo "php-mysql is already installed";
+else
+    echo "Installing php-mysql"
+    echo "y" | sudo yum install php-mysql > /dev/null
+fi
+
+if yum list installed mysql-server > /dev/null 2>&1; then
+    echo "mysql-server is already installed";
+else
+    echo "Installing mysql-server"
+    echo "y" | sudo yum install mysql-server > /dev/null
+fi
+
+/etc/init.d/httpd restart > /dev/null
+
+chkconfig --add httpd  > /dev/null 
+chkconfig --add mysqld  > /dev/null 
+chkconfig --list httpd
+chkconfig --list mysqld
+
+/etc/init.d/mysqld start > /dev/null
+
+wget -O mysql.txt http://boxes.cs.ucr.edu/cs183/mysql.txt > /dev/null 2>&1 
+
+mysql < mysql.txt > /dev/null 2>&1 
+
+wget -O gradebook.php http://boxes.cs.ucr.edu/cs183/gradebook.txt > /dev/null 2>&1
+
+mv ./gradebook.php /var/www/html/ > /dev/null
+
+echo "<h1>183 Gradebook</h1> " > temp.txt
+echo "<pre> " >> temp.txt
+echo "    Claire: 92" >> temp.txt
+echo "       Bob: 90" >> temp.txt
+echo "     Alice: 80" >> temp.txt
+echo "     David: 60" >> temp.txt
+echo " " >> temp.txt
+echo "</pre> " >> temp.txt
+
+curl -O 127.0.0.1/gradebook.php > /dev/null 2>&1
+mv ./gradebook.php ./site.txt
+DIFFCHK=$(diff temp.txt site.txt)
+if [ "$DIFFCHK" != "" ]; then
+    echo "Setup failed"
+    exit 8
+fi
+
+exit 0
